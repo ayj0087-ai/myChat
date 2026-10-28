@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {POST} from '../app/api/chat/route.ts';
+const request=(body:unknown,origin='https://mychat.test')=>new Request('https://mychat.test/api/chat',{method:'POST',headers:{origin},body:JSON.stringify(body)});
+assert.equal((await POST(request({}))).status,400);
+assert.equal((await POST(request({},'https://evil.test'))).status,403);
+const payload={key:'sk-ant-test-placeholder',model:'claude-sonnet-4-5',question:'출장비 서류?',sources:[{name:'여비규정',text:'출장비 청구 시 영수증을 제출한다.',page:1}]};
+const native=globalThis.fetch;let called=false;
+globalThis.fetch=async(input,init)=>{assert.equal(input,'https://api.anthropic.com/v1/messages');assert.ok(JSON.parse(init?.body as string).messages[0].content.includes('출장비'));called=true;return Response.json({content:[{type:'text',text:'영수증을 제출합니다. [1]'}]});};
+const res=await POST(request(payload));assert.equal(res.status,200);assert.equal((await res.json()).answer,'영수증을 제출합니다. [1]');assert.ok(called);
+globalThis.fetch=async()=>Response.json({}, {status:401});assert.equal((await POST(request(payload))).status,401);
+globalThis.fetch=native;console.log('API tests passed: validation, cross-origin rejection, mocked Claude response, upstream error.');
